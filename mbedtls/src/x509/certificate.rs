@@ -61,6 +61,14 @@ impl BERDecodable for Extension {
 }
 
 impl Certificate {
+    pub fn inner_ptr(&mut self) -> *mut x509_crt {
+        &mut self.inner
+    }
+
+    pub fn inner_ptr_const(&self) -> *const x509_crt {
+        &self.inner
+    }
+    
     pub fn from_der(der: &[u8]) -> Result<Certificate> {
         let mut ret = Self::init();
         unsafe { x509_crt_parse_der(&mut ret.inner, der.as_ptr(), der.len()) }.into_result()?;
@@ -323,6 +331,12 @@ impl fmt::Debug for LinkedCertificate {
 }
 
 impl<'r> Into<*const x509_crt> for &'r LinkedCertificate {
+    fn into(self) -> *const x509_crt {
+        &self.inner
+    }
+}
+
+impl<'r> Into<*const x509_crt> for &'r mut LinkedCertificate {
     fn into(self) -> *const x509_crt {
         &self.inner
     }

@@ -21,6 +21,12 @@ define!(
     impl<'a> Into<ptr> {}
 );
 
+impl<'r> Into<*const x509_crl> for &'r mut Crl {
+    fn into(self) -> *const x509_crl  {
+        &mut self.inner
+    }
+}
+
 impl Crl {
     pub fn push_from_der(&mut self, der: &[u8]) -> Result<()> {
         unsafe {

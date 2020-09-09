@@ -370,7 +370,7 @@ int mbedtls_pk_can_do( const mbedtls_pk_context *ctx, mbedtls_pk_type_t type );
  *
  * \note            md_alg may be MBEDTLS_MD_NONE, only if hash_len != 0
  */
-int mbedtls_pk_verify( mbedtls_pk_context *ctx, mbedtls_md_type_t md_alg,
+int mbedtls_pk_verify( const mbedtls_pk_context *ctx, mbedtls_md_type_t md_alg,
                const unsigned char *hash, size_t hash_len,
                const unsigned char *sig, size_t sig_len );
 
@@ -394,7 +394,7 @@ int mbedtls_pk_verify( mbedtls_pk_context *ctx, mbedtls_md_type_t md_alg,
  * \return          #MBEDTLS_ERR_ECP_IN_PROGRESS if maximum number of
  *                  operations was reached: see \c mbedtls_ecp_set_max_ops().
  */
-int mbedtls_pk_verify_restartable( mbedtls_pk_context *ctx,
+int mbedtls_pk_verify_restartable( const mbedtls_pk_context *ctx,
                mbedtls_md_type_t md_alg,
                const unsigned char *hash, size_t hash_len,
                const unsigned char *sig, size_t sig_len,
@@ -430,7 +430,7 @@ int mbedtls_pk_verify_restartable( mbedtls_pk_context *ctx,
  *                  otherwise it must be NULL.
  */
 int mbedtls_pk_verify_ext( mbedtls_pk_type_t type, const void *options,
-                   mbedtls_pk_context *ctx, mbedtls_md_type_t md_alg,
+                   const mbedtls_pk_context *ctx, mbedtls_md_type_t md_alg,
                    const unsigned char *hash, size_t hash_len,
                    const unsigned char *sig, size_t sig_len );
 

@@ -972,8 +972,8 @@ struct mbedtls_ssl_config
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
     const mbedtls_x509_crt_profile *cert_profile; /*!< verification profile */
     mbedtls_ssl_key_cert *key_cert; /*!< own certificate/key pair(s)        */
-    mbedtls_x509_crt *ca_chain;     /*!< trusted CAs                        */
-    mbedtls_x509_crl *ca_crl;       /*!< trusted CAs CRLs                   */
+    const mbedtls_x509_crt *ca_chain;     /*!< trusted CAs                        */
+    const mbedtls_x509_crl *ca_crl;       /*!< trusted CAs CRLs                   */
 #if defined(MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK)
     mbedtls_x509_crt_ca_cb_t f_ca_cb;
     void *p_ca_cb;
@@ -2404,8 +2404,8 @@ void mbedtls_ssl_conf_cert_profile( mbedtls_ssl_config *conf,
  * \param ca_crl   trusted CA CRLs
  */
 void mbedtls_ssl_conf_ca_chain( mbedtls_ssl_config *conf,
-                               mbedtls_x509_crt *ca_chain,
-                               mbedtls_x509_crl *ca_crl );
+                               const mbedtls_x509_crt *ca_chain,
+                               const mbedtls_x509_crl *ca_crl );
 
 #if defined(MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK)
 /**
@@ -2501,8 +2501,8 @@ void mbedtls_ssl_conf_ca_cb( mbedtls_ssl_config *conf,
  * \return         0 on success or MBEDTLS_ERR_SSL_ALLOC_FAILED
  */
 int mbedtls_ssl_conf_own_cert( mbedtls_ssl_config *conf,
-                              mbedtls_x509_crt *own_cert,
-                              mbedtls_pk_context *pk_key );
+                              const mbedtls_x509_crt *own_cert,
+                              const mbedtls_pk_context *pk_key );
 #endif /* MBEDTLS_X509_CRT_PARSE_C */
 
 #if defined(MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED)
@@ -2831,8 +2831,8 @@ int mbedtls_ssl_set_hs_own_cert( mbedtls_ssl_context *ssl,
  * \param ca_crl   trusted CA CRLs
  */
 void mbedtls_ssl_set_hs_ca_chain( mbedtls_ssl_context *ssl,
-                                  mbedtls_x509_crt *ca_chain,
-                                  mbedtls_x509_crl *ca_crl );
+                                  const mbedtls_x509_crt *ca_chain,
+                                  const mbedtls_x509_crl *ca_crl );
 
 /**
  * \brief          Set authmode for the current handshake.

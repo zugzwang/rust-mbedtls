@@ -199,7 +199,7 @@ mbedtls_x509write_cert;
  * Item in a verification chain: cert and flags for it
  */
 typedef struct {
-    mbedtls_x509_crt *crt;
+    const mbedtls_x509_crt *crt;
     uint32_t flags;
 } mbedtls_x509_crt_verify_chain_item;
 
@@ -595,8 +595,8 @@ int mbedtls_x509_crt_verify_with_profile( mbedtls_x509_crt *crt,
  *                 operations was reached: see \c mbedtls_ecp_set_max_ops().
  */
 int mbedtls_x509_crt_verify_restartable( mbedtls_x509_crt *crt,
-                     mbedtls_x509_crt *trust_ca,
-                     mbedtls_x509_crl *ca_crl,
+                     const mbedtls_x509_crt *trust_ca,
+                     const mbedtls_x509_crl *ca_crl,
                      const mbedtls_x509_crt_profile *profile,
                      const char *cn, uint32_t *flags,
                      int (*f_vrfy)(void *, mbedtls_x509_crt *, int, uint32_t *),

@@ -2305,8 +2305,8 @@ int mbedtls_x509_crt_is_revoked( const mbedtls_x509_crt *crt, const mbedtls_x509
  * Check that the given certificate is not revoked according to the CRL.
  * Skip validation if no CRL for the given CA is present.
  */
-static int x509_crt_verifycrl( mbedtls_x509_crt *crt, mbedtls_x509_crt *ca,
-                               mbedtls_x509_crl *crl_list,
+static int x509_crt_verifycrl( const mbedtls_x509_crt *crt, const mbedtls_x509_crt *ca,
+                               const mbedtls_x509_crl *crl_list,
                                const mbedtls_x509_crt_profile *profile )
 {
     int flags = 0;
@@ -2394,7 +2394,7 @@ static int x509_crt_verifycrl( mbedtls_x509_crt *crt, mbedtls_x509_crt *ca,
  * Check the signature of a certificate by its parent
  */
 static int x509_crt_check_signature( const mbedtls_x509_crt *child,
-                                     mbedtls_x509_crt *parent,
+                                     const mbedtls_x509_crt *parent,
                                      mbedtls_x509_crt_restart_ctx *rs_ctx )
 {
     unsigned char hash[MBEDTLS_MD_MAX_SIZE];
@@ -2527,9 +2527,9 @@ static int x509_crt_check_parent( const mbedtls_x509_crt *child,
  *  - MBEDTLS_ERR_ECP_IN_PROGRESS otherwise
  */
 static int x509_crt_find_parent_in(
-                        mbedtls_x509_crt *child,
-                        mbedtls_x509_crt *candidates,
-                        mbedtls_x509_crt **r_parent,
+                        const mbedtls_x509_crt *child,
+                        const mbedtls_x509_crt *candidates,
+                        const mbedtls_x509_crt **r_parent,
                         int *r_signature_is_good,
                         int top,
                         unsigned path_cnt,
@@ -2537,7 +2537,7 @@ static int x509_crt_find_parent_in(
                         mbedtls_x509_crt_restart_ctx *rs_ctx )
 {
     int ret;
-    mbedtls_x509_crt *parent, *fallback_parent;
+    const mbedtls_x509_crt *parent, *fallback_parent;
     int signature_is_good, fallback_signature_is_good;
 
 #if defined(MBEDTLS_ECDSA_C) && defined(MBEDTLS_ECP_RESTARTABLE)
@@ -2652,9 +2652,9 @@ check_signature:
  *  - MBEDTLS_ERR_ECP_IN_PROGRESS otherwise
  */
 static int x509_crt_find_parent(
-                        mbedtls_x509_crt *child,
-                        mbedtls_x509_crt *trust_ca,
-                        mbedtls_x509_crt **parent,
+                        const mbedtls_x509_crt *child,
+                        const mbedtls_x509_crt *trust_ca,
+                        const mbedtls_x509_crt **parent,
                         int *parent_is_trusted,
                         int *signature_is_good,
                         unsigned path_cnt,
@@ -2662,7 +2662,7 @@ static int x509_crt_find_parent(
                         mbedtls_x509_crt_restart_ctx *rs_ctx )
 {
     int ret;
-    mbedtls_x509_crt *search_list;
+    const mbedtls_x509_crt *search_list;
 
     *parent_is_trusted = 1;
 
@@ -2719,10 +2719,10 @@ static int x509_crt_find_parent(
  * check for self-issued as self-signatures are not checked)
  */
 static int x509_crt_check_ee_locally_trusted(
-                    mbedtls_x509_crt *crt,
-                    mbedtls_x509_crt *trust_ca )
+                    const mbedtls_x509_crt *crt,
+                    const mbedtls_x509_crt *trust_ca )
 {
-    mbedtls_x509_crt *cur;
+    const mbedtls_x509_crt *cur;
 
     /* must be self-issued */
     if( x509_name_cmp( &crt->issuer, &crt->subject ) != 0 )
@@ -2797,8 +2797,8 @@ static int x509_crt_verify_chain(
     int ret;
     uint32_t *flags;
     mbedtls_x509_crt_verify_chain_item *cur;
-    mbedtls_x509_crt *child;
-    mbedtls_x509_crt *parent;
+    const mbedtls_x509_crt *child;
+    const mbedtls_x509_crt *parent;
     int parent_is_trusted;
     int child_is_trusted;
     int signature_is_good;
@@ -3200,8 +3200,8 @@ int mbedtls_x509_crt_verify_with_ca_cb( mbedtls_x509_crt *crt,
 #endif /* MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK */
 
 int mbedtls_x509_crt_verify_restartable( mbedtls_x509_crt *crt,
-                     mbedtls_x509_crt *trust_ca,
-                     mbedtls_x509_crl *ca_crl,
+                     const mbedtls_x509_crt *trust_ca,
+                     const mbedtls_x509_crl *ca_crl,
                      const mbedtls_x509_crt_profile *profile,
                      const char *cn, uint32_t *flags,
                      int (*f_vrfy)(void *, mbedtls_x509_crt *, int, uint32_t *),

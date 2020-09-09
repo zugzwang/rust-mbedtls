@@ -142,7 +142,21 @@ define!(
     impl<'a> UnsafeFrom<ptr> {}
 );
 
+impl<'r> Into<*const pk_context> for &'r mut Pk {
+    fn into(self) -> *const pk_context  {
+        &mut self.inner
+    }
+}
+
+
 impl Pk {
+    pub fn inner_ptr(&mut self) -> *mut pk_context {
+        &mut self.inner
+    }
+    pub fn inner_ptr_const(&self) -> *const pk_context {
+        &self.inner
+    }
+
     /// Takes both DER and PEM forms of PKCS#1 or PKCS#8 encoded keys.
     ///
     /// When calling on PEM-encoded data, `key` must be NULL-terminated

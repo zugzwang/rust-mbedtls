@@ -10,6 +10,7 @@ pub mod ciphersuites;
 pub mod config;
 pub mod context;
 pub mod ticket;
+pub mod mbed;
 
 #[doc(inline)]
 pub use self::ciphersuites::CipherSuite;

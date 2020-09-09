@@ -1,0 +1,16 @@
+[workspace]
+
+[package]
+name = "mbedtls-hyper"
+version = "0.1.0"
+authors = ["fortanix.com"]
+edition = "2018"
+license = "MPL-2.0"
+
+[dependencies]
+hyper = "0.10"
+mbedtls = { path = "../mbedtls", default-features = false }
+
+[features]
+default = [ "mbedtls/default" ]
+sgx = [ "mbedtls/sgx" ]
