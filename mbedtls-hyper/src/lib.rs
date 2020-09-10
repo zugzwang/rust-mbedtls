@@ -5,7 +5,7 @@ use hyper::net::NetworkStream;
 use std::net::SocketAddr;
 use std::time::Duration;
 use std::net::Shutdown;
-
+ 
 use hyper::net::NetworkConnector;
 use std::sync::Arc;
 
@@ -16,25 +16,35 @@ use std::net::TcpStream;
 #[derive(Clone)]
 pub struct MbedSSLNetworkConnector {
     rc_config: Arc<MbedSSLConfig>,
+    sni_override: Option<String>,
 }
 
 unsafe impl Send for MbedSSLNetworkConnector {}
 unsafe impl Sync for MbedSSLNetworkConnector {}
 
 impl MbedSSLNetworkConnector {
-    pub fn new(config: Arc<MbedSSLConfig>) -> Self {
-        MbedSSLNetworkConnector { rc_config : config }
+    pub fn new(config: Arc<MbedSSLConfig>, sni_override: Option<&str>) -> Self {
+        MbedSSLNetworkConnector {
+            rc_config : config,
+            sni_override: sni_override.map(|v| v.to_string()),
+        }
     }
 }
 
 impl NetworkConnector for MbedSSLNetworkConnector {
     type Stream = MbedSSLNetworkStream;
-        
+    
     fn connect(&self, host: &str, port: u16, _scheme: &str) -> Result<Self::Stream, hyper::Error> {
-        let conn = TcpStream::connect((host, port)).unwrap(); //.map_err(|e| format!("TCP connect error: {:?}", e))?;
+        let conn = TcpStream::connect((host, port)).map_err(hyper::error::Error::Io)?;
 
-        let mut ctx = MbedSSLContext::new(self.rc_config.clone()); //.map_err(|e| format!("TLS context creation failed: {:?}", e))?;
-        ctx.establish(conn, Some("nodes.localhost")).unwrap(); //.map_err(|e| format!("TLS Session error: {:?}", e))?;
+        let mut ctx = MbedSSLContext::new(self.rc_config.clone());
+
+        let sni = match &self.sni_override {
+            Some(sni) => sni,
+            None => host,
+        };
+        
+        ctx.establish(conn, Some(sni)).map_err(|e| hyper::error::Error::Ssl(e.into()))?;
 
         Ok(MbedSSLNetworkStream {
             context: ctx,
@@ -121,7 +131,7 @@ mod tests {
         
         // Immutable from this point on
         let rc_config = Arc::new(config);
-        let connector = MbedSSLNetworkConnector::new(rc_config);
+        let connector = MbedSSLNetworkConnector::new(rc_config, None);
         let client = hyper::Client::with_connector(Pool::with_connector(Default::default(), connector));
 
         let response = client.get("https://www.google.com/").send().unwrap();
@@ -144,7 +154,7 @@ mod tests {
         
         // Immutable from this point on
         let rc_config = Arc::new(config);
-        let connector = MbedSSLNetworkConnector::new(rc_config);
+        let connector = MbedSSLNetworkConnector::new(rc_config, None);
         
         let client1 = hyper::Client::with_connector(Pool::with_connector(Default::default(), connector.clone()));
         let response = client1.get("https://www.google.com/").send().unwrap();
