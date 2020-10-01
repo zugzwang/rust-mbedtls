@@ -200,7 +200,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PSA_CRYPTO_SPM",                            Undefined),
     ("MBEDTLS_PSA_INJECT_ENTROPY",                        Undefined),
     ("MBEDTLS_RSA_NO_CRT",                                Undefined),
-    ("MBEDTLS_SELF_TEST",                                 Defined),
+    ("MBEDTLS_SELF_TEST",                                 Undefined),
     ("MBEDTLS_SHA256_SMALLER",                            Undefined),
     ("MBEDTLS_SSL_ALL_ALERT_MESSAGES",                    Defined),
     ("MBEDTLS_SSL_DTLS_CONNECTION_ID",                    Undefined),

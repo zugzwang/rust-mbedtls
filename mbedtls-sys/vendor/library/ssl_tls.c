@@ -8571,8 +8571,8 @@ void mbedtls_ssl_conf_cert_profile( mbedtls_ssl_config *conf,
 
 /* Append a new keycert entry to a (possibly empty) list */
 static int ssl_append_key_cert( mbedtls_ssl_key_cert **head,
-                                mbedtls_x509_crt *cert,
-                                mbedtls_pk_context *key )
+                                const mbedtls_x509_crt *cert,
+                                const mbedtls_pk_context *key )
 {
     mbedtls_ssl_key_cert *new_cert;
 
@@ -8601,15 +8601,15 @@ static int ssl_append_key_cert( mbedtls_ssl_key_cert **head,
 }
 
 int mbedtls_ssl_conf_own_cert( mbedtls_ssl_config *conf,
-                              mbedtls_x509_crt *own_cert,
-                              mbedtls_pk_context *pk_key )
+                              const mbedtls_x509_crt *own_cert,
+                              const mbedtls_pk_context *pk_key )
 {
     return( ssl_append_key_cert( &conf->key_cert, own_cert, pk_key ) );
 }
 
 void mbedtls_ssl_conf_ca_chain( mbedtls_ssl_config *conf,
-                               mbedtls_x509_crt *ca_chain,
-                               mbedtls_x509_crl *ca_crl )
+                               const mbedtls_x509_crt *ca_chain,
+                               const mbedtls_x509_crl *ca_crl )
 {
     conf->ca_chain   = ca_chain;
     conf->ca_crl     = ca_crl;
@@ -8640,16 +8640,16 @@ void mbedtls_ssl_conf_ca_cb( mbedtls_ssl_config *conf,
 
 #if defined(MBEDTLS_SSL_SERVER_NAME_INDICATION)
 int mbedtls_ssl_set_hs_own_cert( mbedtls_ssl_context *ssl,
-                                 mbedtls_x509_crt *own_cert,
-                                 mbedtls_pk_context *pk_key )
+                                 const mbedtls_x509_crt *own_cert,
+                                 const mbedtls_pk_context *pk_key )
 {
     return( ssl_append_key_cert( &ssl->handshake->sni_key_cert,
                                  own_cert, pk_key ) );
 }
 
 void mbedtls_ssl_set_hs_ca_chain( mbedtls_ssl_context *ssl,
-                                  mbedtls_x509_crt *ca_chain,
-                                  mbedtls_x509_crl *ca_crl )
+                                  const mbedtls_x509_crt *ca_chain,
+                                  const mbedtls_x509_crl *ca_crl )
 {
     ssl->handshake->sni_ca_chain   = ca_chain;
     ssl->handshake->sni_ca_crl     = ca_crl;
@@ -8904,7 +8904,7 @@ int mbedtls_ssl_conf_dh_param_bin( mbedtls_ssl_config *conf,
     return( 0 );
 }
 
-int mbedtls_ssl_conf_dh_param_ctx( mbedtls_ssl_config *conf, mbedtls_dhm_context *dhm_ctx )
+int mbedtls_ssl_conf_dh_param_ctx( mbedtls_ssl_config *conf, const mbedtls_dhm_context *dhm_ctx )
 {
     int ret;
 

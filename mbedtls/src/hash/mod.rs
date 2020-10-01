@@ -46,11 +46,13 @@ impl From<md_type_t> for Type {
 
 #[derive(Copy, Clone)]
 pub struct MdInfo {
+    /// Pointer to global C variable
     inner: &'static md_info_t,
 }
 
 impl Into<Option<MdInfo>> for Type {
     fn into(self) -> Option<MdInfo> {
+        // This returns a pointer to a global C variable, does not allocate anything.
         unsafe { md_info_from_type(self.into()).as_ref() }.map(|r| MdInfo { inner: r })
     }
 }

@@ -2404,8 +2404,8 @@ void mbedtls_ssl_conf_cert_profile( mbedtls_ssl_config *conf,
  * \param ca_crl   trusted CA CRLs
  */
 void mbedtls_ssl_conf_ca_chain( mbedtls_ssl_config *conf,
-                               mbedtls_x509_crt *ca_chain,
-                               mbedtls_x509_crl *ca_crl );
+                               const mbedtls_x509_crt *ca_chain,
+                               const mbedtls_x509_crl *ca_crl );
 
 #if defined(MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK)
 /**
@@ -2501,8 +2501,8 @@ void mbedtls_ssl_conf_ca_cb( mbedtls_ssl_config *conf,
  * \return         0 on success or MBEDTLS_ERR_SSL_ALLOC_FAILED
  */
 int mbedtls_ssl_conf_own_cert( mbedtls_ssl_config *conf,
-                              mbedtls_x509_crt *own_cert,
-                              mbedtls_pk_context *pk_key );
+                              const mbedtls_x509_crt *own_cert,
+                              const mbedtls_pk_context *pk_key );
 #endif /* MBEDTLS_X509_CRT_PARSE_C */
 
 #if defined(MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED)
@@ -2709,7 +2709,7 @@ int mbedtls_ssl_conf_dh_param_bin( mbedtls_ssl_config *conf,
  *
  * \return         0 if successful
  */
-int mbedtls_ssl_conf_dh_param_ctx( mbedtls_ssl_config *conf, mbedtls_dhm_context *dhm_ctx );
+int mbedtls_ssl_conf_dh_param_ctx( mbedtls_ssl_config *conf, const mbedtls_dhm_context *dhm_ctx );
 #endif /* MBEDTLS_DHM_C && defined(MBEDTLS_SSL_SRV_C) */
 
 #if defined(MBEDTLS_DHM_C) && defined(MBEDTLS_SSL_CLI_C)
@@ -2816,8 +2816,8 @@ int mbedtls_ssl_set_hostname( mbedtls_ssl_context *ssl, const char *hostname );
  * \return         0 on success or MBEDTLS_ERR_SSL_ALLOC_FAILED
  */
 int mbedtls_ssl_set_hs_own_cert( mbedtls_ssl_context *ssl,
-                                 mbedtls_x509_crt *own_cert,
-                                 mbedtls_pk_context *pk_key );
+                                 const mbedtls_x509_crt *own_cert,
+                                 const mbedtls_pk_context *pk_key );
 
 /**
  * \brief          Set the data required to verify peer certificate for the
@@ -2831,8 +2831,8 @@ int mbedtls_ssl_set_hs_own_cert( mbedtls_ssl_context *ssl,
  * \param ca_crl   trusted CA CRLs
  */
 void mbedtls_ssl_set_hs_ca_chain( mbedtls_ssl_context *ssl,
-                                  mbedtls_x509_crt *ca_chain,
-                                  mbedtls_x509_crl *ca_crl );
+                                  const mbedtls_x509_crt *ca_chain,
+                                  const mbedtls_x509_crl *ca_crl );
 
 /**
  * \brief          Set authmode for the current handshake.

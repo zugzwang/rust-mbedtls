@@ -7,24 +7,20 @@
  * according to those terms. */
 
 use core::fmt;
-use core::marker::PhantomData;
-use core::ops::{Deref, DerefMut};
-use core::ptr;
 
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
 use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::*;
+use crate::x509::Time;
 
 #[cfg(feature = "std")]
 use yasna::{BERDecodable, BERReader, ASN1Result, ASN1Error, ASN1ErrorKind, models::ObjectIdentifier};
-
-use crate::pk::Pk;
 use crate::error::{Error, IntoResult, Result};
-use crate::private::UnsafeFrom;
-use crate::rng::Random;
 use crate::hash::Type as MdType;
+use crate::pk::Pk;
+use crate::rng::Random;
 
 #[derive(Debug,Copy,Clone,Eq,PartialEq)]
 pub enum CertificateVersion {
@@ -33,12 +29,15 @@ pub enum CertificateVersion {
     V3
 }
 
-define!(
-    #[c_ty(x509_crt)]
-    struct Certificate;
-    const init: fn() -> Self = x509_crt_init;
-    const drop: fn(&mut Self) = x509_crt_free;
-);
+pub struct Certificate {
+    inner: Box<x509_crt>,
+}
+
+#[cfg(feature = "threading")]
+unsafe impl Send for Certificate {}
+
+#[cfg(feature = "threading")]
+unsafe impl Sync for Certificate {}
 
 #[cfg(feature = "std")]
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -61,87 +60,150 @@ impl BERDecodable for Extension {
 }
 
 impl Certificate {
-    pub fn from_der(der: &[u8]) -> Result<Certificate> {
-        let mut ret = Self::init();
-        unsafe { x509_crt_parse_der(&mut ret.inner, der.as_ptr(), der.len()) }.into_result()?;
-        Ok(ret)
-    }
+    fn new() -> Self {
+        let mut inner = Box::new(x509_crt::default());
 
-    /// Input must be NULL-terminated
-    pub fn from_pem(pem: &[u8]) -> Result<Certificate> {
-        let mut ret = Self::init();
-        unsafe { x509_crt_parse(&mut ret.inner, pem.as_ptr(), pem.len()) }.into_result()?;
-        let mut fake = Self::init();
-        ::core::mem::swap(&mut fake.inner.next, &mut ret.inner.next);
-        Ok(ret)
-    }
-
-    /// Input must be NULL-terminated
-    #[cfg(buggy)]
-    pub fn from_pem_multiple(pem: &[u8]) -> Result<Vec<Certificate>> {
-        let mut vec;
         unsafe {
-            // first, find out how many certificates we're parsing
-            let mut dummy = Certificate::init();
-            x509_crt_parse(&mut dummy.inner, pem.as_ptr(), pem.len()).into_result()?;
+            x509_crt_init(&mut *inner);
+        };
+        
+        Certificate {
+            inner,
+        }
+    }
 
-            // then allocate enough certs with our allocator
-            vec = Vec::new();
-            let mut cur: *mut _ = &mut dummy.inner;
+    pub fn inner(&self) -> &x509_crt {
+        &*self.inner
+    }
+
+    pub fn inner_ptr(&mut self) -> *mut x509_crt {
+        &mut *self.inner
+    }
+
+    pub fn inner_ptr_const(&self) -> *const x509_crt {
+        &*self.inner
+    }
+
+    pub fn from_der(der: &[u8]) -> Result<Certificate> {
+        let mut ret = Certificate::new();
+        ret.push_back_der(der)?;
+        Ok(ret)
+    }
+
+    pub fn push_back_der(&mut self, der: &[u8]) -> Result<()> {
+        unsafe { x509_crt_parse_der(self.inner_ptr(), der.as_ptr(), der.len()) }.into_result()?;
+        Ok(())
+    }
+
+    /// PEM must be NULL-terminated.
+    pub fn from_pem(pem_or_der: &[u8]) -> Result<Certificate> {
+        let mut ret = Certificate::new();
+        ret.push_back(pem_or_der)?;
+        Ok(ret)
+    }
+    
+    pub fn push_back(&mut self, pem_or_der: &[u8]) -> Result<()> {
+        unsafe { x509_crt_parse(self.inner_ptr(), pem_or_der.as_ptr(), pem_or_der.len()) }.into_result()?;
+        Ok(())
+    }
+
+    pub fn from_cert(cert: &x509_crt) -> Certificate {
+        let mut ret = Certificate::new();
+        ret.push_back_cert(cert);
+        ret
+    }
+    
+    pub fn push_back_cert(&mut self, cert: &x509_crt) {
+        unsafe {
+            // Copy the first certificate
+            self.push_back(std::slice::from_raw_parts(cert.raw.p, cert.raw.len)).expect("Failed re-parsing existing DER");
+
+            // Iterate through all next objects and push them as well
+            let mut cur = cert.next;
             while cur != ::core::ptr::null_mut() {
-                vec.push(Certificate::init());
+                self.push_back(std::slice::from_raw_parts((*cur).raw.p, (*cur).raw.len)).expect("Failed re-parsing existing DER");
                 cur = (*cur).next;
             }
+        }
+    }
 
-            // link them together, they will become unlinked again when List drops
-            let list = List::from_vec(&mut vec).unwrap();
+    pub fn iter(&self) -> Iter<'_> {
+        Iter {
+            inner: Some(&*self.inner)
+        }
+    }
 
-            // load the data again but into our allocated list
-            x509_crt_parse(&mut list.head.inner, pem.as_ptr(), pem.len()).into_result()?;
-        };
-        Ok(vec)
+    pub fn linked_cert(&self) -> LinkedCertificate<'_> {
+        LinkedCertificate { inner: &*self.inner }
     }
 }
 
 impl fmt::Debug for Certificate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match crate::private::alloc_string_repeat(|buf, size| unsafe {
-            x509_crt_info(buf, size, b"\0".as_ptr() as *const _, &self.inner)
-        }) {
-            Err(_) => Err(fmt::Error),
-            Ok(s) => f.write_str(&s),
+        let mut count = 0;
+        for i in self.iter() {
+            f.write_fmt(format_args!("Certificate[{}]\n{:?}\n", count, i))?;
+            count = count + 1;
         }
+        Ok(())
     }
 }
 
 impl Clone for Certificate {
     fn clone(&self) -> Certificate {
-        let mut ret = Self::init();
+
         unsafe {
-            x509_crt_parse_der(&mut ret.inner, self.inner.raw.p, self.inner.raw.len)
-                .into_result()
-                .unwrap()
-        };
-        ret
+            let der = std::slice::from_raw_parts(self.inner.raw.p, self.inner.raw.len);
+            let mut cert = Certificate::from_der(&der).expect("Failed re-parsing existing DER");
+
+            let mut cur = self.inner.next;
+            while cur != ::core::ptr::null_mut() {
+                let der = std::slice::from_raw_parts((*cur).raw.p, (*cur).raw.len);
+                cert.push_back_der(&der).expect("Failed re-parsing existing DER");
+                cur = (*cur).next;
+            }
+
+            cert
+        }
     }
 }
 
-impl Deref for Certificate {
-    type Target = LinkedCertificate;
-    fn deref(&self) -> &LinkedCertificate {
-        unsafe { UnsafeFrom::from(&self.inner as *const _).unwrap() }
+impl Drop for Certificate {
+    fn drop(&mut self) {
+        // This frees ALL the linked certificates.
+        unsafe {
+            x509_crt_free(self.inner_ptr());
+        }
     }
 }
 
-impl DerefMut for Certificate {
-    fn deref_mut(&mut self) -> &mut LinkedCertificate {
-        unsafe { UnsafeFrom::from(&mut self.inner as *mut _).unwrap() }
+pub struct Iter<'a> {
+    inner: Option<&'a x509_crt>
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = LinkedCertificate<'a>;
+
+    fn next(&mut self) -> Option<LinkedCertificate<'a>> {
+        match self.inner {
+            None => None,
+            Some(crt) => {
+                let ret = LinkedCertificate { inner: crt };
+                
+                if crt.next as *const _ != ::core::ptr::null() {
+                    self.inner = unsafe { Some(&*crt.next) };
+                } else {
+                    self.inner = None;
+                }
+                
+                Some(ret)
+            }
+        }
     }
 }
 
-#[repr(C)]
-pub struct LinkedCertificate {
-    inner: x509_crt,
+pub struct LinkedCertificate<'a> {
+    pub inner: &'a x509_crt
 }
 
 fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
@@ -153,25 +215,26 @@ fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
     slice.to_owned()
 }
 
-fn x509_time_to_time(tm: &x509_time) -> Result<super::Time> {
+fn x509_time_to_time(tm: &x509_time) -> Result<Time> {
     // ensure casts don't underflow
     if tm.year < 0 || tm.mon < 0 || tm.day < 0 || tm.hour < 0 || tm.min < 0 || tm.sec < 0 {
         return Err(Error::X509InvalidDate);
     }
 
-    super::Time::new(tm.year as u16, tm.mon as u8, tm.day as u8, tm.hour as u8, tm.min as u8, tm.sec as u8).ok_or(Error::X509InvalidDate)
+    Time::new(tm.year as u16, tm.mon as u8, tm.day as u8, tm.hour as u8, tm.min as u8, tm.sec as u8).ok_or(Error::X509InvalidDate)
 }
 
-impl LinkedCertificate {
+
+impl<'a> LinkedCertificate<'a> {
     pub fn check_key_usage(&self, usage: super::KeyUsage) -> bool {
-        unsafe { x509_crt_check_key_usage(&self.inner, usage.bits()) }
+        unsafe { x509_crt_check_key_usage(self.inner, usage.bits()) }
             .into_result()
             .is_ok()
     }
 
     pub fn check_extended_key_usage(&self, usage_oid: &[c_char]) -> bool {
         unsafe {
-            x509_crt_check_extended_key_usage(&self.inner, usage_oid.as_ptr(), usage_oid.len())
+            x509_crt_check_extended_key_usage(self.inner, usage_oid.as_ptr(), usage_oid.len())
         }
         .into_result()
         .is_ok()
@@ -212,7 +275,7 @@ impl LinkedCertificate {
     }
 
     pub fn public_key_mut(&mut self) -> &mut Pk {
-        unsafe { &mut *(&mut self.inner.pk as *mut _ as *mut _) }
+        unsafe { &mut *(&self.inner.pk as *const _ as *mut _) }
     }
 
     pub fn as_der(&self) -> &[u8] {
@@ -228,11 +291,11 @@ impl LinkedCertificate {
         }
     }
 
-    pub fn not_before(&self) -> Result<super::Time> {
+    pub fn not_before(&self) -> Result<Time> {
         x509_time_to_time(&self.inner.valid_from)
     }
 
-    pub fn not_after(&self) -> Result<super::Time> {
+    pub fn not_after(&self) -> Result<Time> {
         x509_time_to_time(&self.inner.valid_to)
     }
 
@@ -269,20 +332,20 @@ impl LinkedCertificate {
     }
 
     pub fn verify(
-        &mut self,
+        &self,
         trust_ca: &mut Certificate,
         err_info: Option<&mut String>,
     ) -> Result<()> {
         let mut flags = 0;
         let result = unsafe {
             x509_crt_verify(
-                &mut self.inner,
-                &mut trust_ca.inner,
-                ptr::null_mut(),
-                ptr::null(),
+                &*self.inner,
+                trust_ca.inner_ptr(),
+                ::core::ptr::null_mut(),
+                ::core::ptr::null(),
                 &mut flags,
                 None,
-                ptr::null_mut(),
+                ::core::ptr::null_mut(),
             )
         }
         .into_result();
@@ -311,10 +374,10 @@ impl LinkedCertificate {
 // x509_crt_parse_path
 //
 
-impl fmt::Debug for LinkedCertificate {
+impl<'a> fmt::Debug for LinkedCertificate<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match crate::private::alloc_string_repeat(|buf, size| unsafe {
-            x509_crt_info(buf, size, b"\0".as_ptr() as *const _, &self.inner)
+            x509_crt_info(buf, size, b"\0".as_ptr() as *const _, &*self.inner)
         }) {
             Err(_) => Err(fmt::Error),
             Ok(s) => f.write_str(&s),
@@ -322,170 +385,6 @@ impl fmt::Debug for LinkedCertificate {
     }
 }
 
-impl<'r> Into<*const x509_crt> for &'r LinkedCertificate {
-    fn into(self) -> *const x509_crt {
-        &self.inner
-    }
-}
-
-impl<'r> Into<*mut x509_crt> for &'r mut LinkedCertificate {
-    fn into(self) -> *mut x509_crt {
-        &mut self.inner
-    }
-}
-
-impl<'r> UnsafeFrom<*const x509_crt> for &'r LinkedCertificate {
-    unsafe fn from(ptr: *const x509_crt) -> Option<&'r LinkedCertificate> {
-        (ptr as *const LinkedCertificate).as_ref()
-    }
-}
-
-impl<'r> UnsafeFrom<*mut x509_crt> for &'r mut LinkedCertificate {
-    unsafe fn from(ptr: *mut x509_crt) -> Option<&'r mut LinkedCertificate> {
-        (ptr as *mut LinkedCertificate).as_mut()
-    }
-}
-
-pub struct Iter<'a> {
-    next: *const x509_crt,
-    r: PhantomData<&'a x509_crt>,
-}
-
-impl<'a> Iterator for Iter<'a> {
-    type Item = &'a LinkedCertificate;
-
-    fn next(&mut self) -> Option<&'a LinkedCertificate> {
-        unsafe {
-            match self.next {
-                p if p == ::core::ptr::null() => None,
-                p => {
-                    self.next = (*p).next as *const _;
-                    Some(UnsafeFrom::from(p).unwrap())
-                }
-            }
-        }
-    }
-}
-
-impl<'r> UnsafeFrom<*const x509_crt> for Iter<'r> {
-    unsafe fn from(ptr: *const x509_crt) -> Option<Iter<'r>> {
-        if ptr.is_null() {
-            None
-        } else {
-            Some(Iter {
-                next: ptr,
-                r: PhantomData,
-            })
-        }
-    }
-}
-
-pub struct IterMut<'a> {
-    next: *mut x509_crt,
-    r: PhantomData<&'a mut x509_crt>,
-}
-
-impl<'a> Iterator for IterMut<'a> {
-    type Item = &'a mut LinkedCertificate;
-
-    fn next(&mut self) -> Option<&'a mut LinkedCertificate> {
-        unsafe {
-            match self.next {
-                p if p == ::core::ptr::null_mut() => None,
-                p => {
-                    self.next = (*p).next;
-                    Some(UnsafeFrom::from(p).unwrap())
-                }
-            }
-        }
-    }
-}
-
-impl<'r> UnsafeFrom<*mut x509_crt> for IterMut<'r> {
-    unsafe fn from(ptr: *mut x509_crt) -> Option<IterMut<'r>> {
-        if ptr.is_null() {
-            None
-        } else {
-            Some(IterMut {
-                next: ptr,
-                r: PhantomData,
-            })
-        }
-    }
-}
-
-pub struct List<'c> {
-    head: &'c mut Certificate,
-}
-
-impl<'c> List<'c> {
-    pub fn iter<'i>(&'i self) -> Iter<'i> {
-        unsafe { UnsafeFrom::from(&self.head.inner as *const _).expect("not null") }
-    }
-
-    pub fn iter_mut<'i>(&'i mut self) -> IterMut<'i> {
-        unsafe { UnsafeFrom::from(&mut self.head.inner as *mut _).expect("not null") }
-    }
-
-    pub fn push_front(&mut self, cert: &'c mut Certificate) {
-        assert!(cert.inner.next == ::core::ptr::null_mut());
-        cert.inner.next = &mut self.head.inner;
-        self.head = cert;
-    }
-
-    pub fn push_back(&mut self, cert: &'c mut Certificate) {
-        assert!(cert.inner.next == ::core::ptr::null_mut());
-        for c in self.iter_mut() {
-            if c.inner.next == ::core::ptr::null_mut() {
-                c.inner.next = &mut cert.inner;
-                break;
-            }
-        }
-    }
-
-    pub fn append(&mut self, list: List<'c>) {
-        assert!(list.head.inner.next == ::core::ptr::null_mut());
-        for c in self.iter_mut() {
-            if c.inner.next == ::core::ptr::null_mut() {
-                c.inner.next = &mut list.head.inner;
-                break;
-            }
-        }
-        ::core::mem::forget(list);
-    }
-
-    pub fn from_vec(vec: &'c mut Vec<Certificate>) -> Option<List<'c>> {
-        vec.split_first_mut().map(|(first, rest)| {
-            let mut list = List::from(first);
-            for c in rest {
-                list.push_back(c);
-            }
-            list
-        })
-    }
-}
-
-impl<'c> Drop for List<'c> {
-    fn drop(&mut self) {
-        // we don't own the certificates, we just need to make sure that
-        // x509_crt_free isn't going to try to deallocate our linked certs
-        for c in self.iter_mut() {
-            c.inner.next = ::core::ptr::null_mut();
-        }
-    }
-}
-
-impl<'c> From<&'c mut Certificate> for List<'c> {
-    fn from(cert: &'c mut Certificate) -> List<'c> {
-        List { head: cert }
-    }
-}
-
-impl<'c, 'r> From<&'c mut List<'r>> for &'c mut LinkedCertificate {
-    fn from(list: &'c mut List<'r>) -> &'c mut LinkedCertificate {
-        list.head
-    }
-}
 
 define!(
     #[c_ty(x509write_cert)]
@@ -538,12 +437,12 @@ impl<'a> Builder<'a> {
     }
 
     pub fn subject_key(&mut self, key: &'a mut Pk) -> &mut Self {
-        unsafe { x509write_crt_set_subject_key(&mut self.inner, key.into()) };
+        unsafe { x509write_crt_set_subject_key(&mut self.inner, key.inner_ptr()) };
         self
     }
 
     pub fn issuer_key(&mut self, key: &'a mut Pk) -> &mut Self {
-        unsafe { x509write_crt_set_issuer_key(&mut self.inner, key.into()) };
+        unsafe { x509write_crt_set_issuer_key(&mut self.inner, key.inner_ptr()) };
         self
     }
 
@@ -694,8 +593,6 @@ mod tests {
         }
 
         fn builder<'a>(&'a mut self) -> Builder<'a> {
-            use crate::x509::Time;
-
             let mut b = Builder::new();
             b.subject_key(&mut self.key1)
                 .subject_with_nul("CN=mbedtls.example\0")
@@ -805,9 +702,8 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         assert_eq!(output, TEST_PEM);
     }
 
-    #[test]
-    fn cert_field_access() {
-        const TEST_CERT_PEM: &'static str = "-----BEGIN CERTIFICATE-----
+    
+    const TEST_CERT_PEM: &'static str = "-----BEGIN CERTIFICATE-----
 MIIDLDCCAhSgAwIBAgIRALY0SS5pY9Yb/aIHvSAvmOswDQYJKoZIhvcNAQELBQAw
 HzEQMA4GA1UEAxMHVGVzdCBDQTELMAkGA1UEBhMCVVMwHhcNMTkwMTA4MDAxODM1
 WhcNMjkwMTA1MDAxODM1WjAjMRIwEAYDVQQDEwlUZXN0IENlcnQxDTALBgNVBAoT
@@ -827,8 +723,11 @@ lWyWBGzVgSbzripmaAzMyKrsvmgPpfx5aE7zP2QVOzGXE/QuoXqj/bmblNlUZu11
 cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 -----END CERTIFICATE-----\0";
 
-        let cert = Certificate::from_pem(&TEST_CERT_PEM.as_bytes()).unwrap();
-
+    #[test]
+    fn cert_field_access() {
+        let chain = Certificate::from_pem(TEST_CERT_PEM.as_bytes()).unwrap();
+        let cert = chain.linked_cert();
+        
         assert_eq!(cert.version().unwrap(), CertificateVersion::V3);
         assert_eq!(cert.issuer().unwrap(), "CN=Test CA, C=US");
         assert_eq!(cert.subject().unwrap(), "CN=Test Cert, O=Test");
@@ -844,7 +743,6 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert_eq!(hex::encode(cert.signature().unwrap()), "4a4b2638e636a0c0121b0334e04b342ac17b178b1a3000d5dc84c0612941519e3ac99da72823809e643f9d1c0ff7ca2734c63974215879f6286532d43b0da6086fb212a96c8f573de4230c9ab3ae09d621719d2e35b3e91963d5e763a273f0e25d6bbc5fcd0cd7ace688821df1724fb3956c96046cd58126f3ae2a66680cccc8aaecbe680fa5fc79684ef33f64153b319713f42ea17aa3fdb99b94d95466ed75e572789d2c7388a49d35a6590429fe9b6959896e8658aee276f3474ff315051e6633be236d2acf552164ea6936122f9d718a746c7fd170f4c2d19f996aa49632d7f146b93adcc25017d117a4309dbd045c4cc0fd0fce4326b30a9fc6ae9aad0c");
         assert_eq!(hex::encode(cert.extensions_raw().unwrap()), "30819f30210603551d0e041a04186839fad57e6544121cc6bc421953cc9620655c57cfac060230320603551d11042b302981117465737440666f7274616e69782e636f6d82146578616d706c652e666f7274616e69782e636f6d300c0603551d130101ff0402300030230603551d23041c301a801879076bcc8da0077e4116f84b8e4c9c5c6af7ec4fa000d98730130603551d25040c300a06082b06010505070302");
 
-        use crate::x509::Time;
         assert_eq!(cert.not_before().unwrap(), Time::new(2019,1,8,0,18,35).unwrap());
         assert_eq!(cert.not_after().unwrap(), Time::new(2029,1,5,0,18,35).unwrap());
 
@@ -902,7 +800,8 @@ lWyWBGzVgSbzripmaAzMyKrsvmgPpfx5aE7zP2QVOzGXE/QuoXqj/bmblNlUZu11
 cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 -----END CERTIFICATE-----\0";
 
-        let cert = Certificate::from_pem(&TEST_CERT_PEM.as_bytes()).unwrap();
+        let chain = Certificate::from_pem(&TEST_CERT_PEM.as_bytes()).unwrap();
+        let cert = chain.linked_cert();
 
         let pk = cert.public_key();
 
@@ -935,28 +834,54 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
         const C_ROOT: &'static str = concat!(include_str!("../../tests/data/chain-root.crt"),"\0");
 
-        let mut c_leaf = Certificate::from_pem(C_LEAF.as_bytes()).unwrap();
-        let mut c_int1 = Certificate::from_pem(C_INT1.as_bytes()).unwrap();
-        let mut c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
+        let c_leaf = Certificate::from_pem(C_LEAF.as_bytes()).unwrap();
+        let c_int1 = Certificate::from_pem(C_INT1.as_bytes()).unwrap();
+        let c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
         let mut c_root = Certificate::from_pem(C_ROOT.as_bytes()).unwrap();
 
         {
-            let mut chain = List::from(&mut c_leaf);
-            chain.push_back(&mut c_int1);
+            let mut chain = c_leaf.clone();
+            chain.push_back_cert(c_int1.inner());
 
-            // incomplete chain
-            let err = LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap_err();
+            let err = chain.linked_cert().verify(&mut c_root, None).unwrap_err();
             assert_eq!(err, Error::X509CertVerifyFailed);
 
             // try again after fixing the chain
-            chain.push_back(&mut c_int2);
-            LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap();
+            chain.push_back_cert(c_int2.inner());
+            chain.linked_cert().verify(&mut c_root, None).unwrap();
         }
 
-        #[cfg(feature = "std")]
         {
-            let mut chain = vec![c_leaf, c_int1, c_int2];
-            LinkedCertificate::verify((&mut List::from_vec(&mut chain).unwrap()).into(), &mut c_root, None).unwrap();
+            let mut chain = c_leaf.clone();
+            chain.push_back_cert(c_int1.inner());
+            chain.push_back_cert(c_int2.inner());
+
+            chain.linked_cert().verify(&mut c_root, None).unwrap();
         }
+    }
+
+
+    
+    #[test]
+    fn clone_test() {
+        let mut chain = Certificate::from_pem(TEST_CERT_PEM.as_bytes()).unwrap();
+        chain.push_back(TEST_CERT_PEM.as_bytes()).unwrap();
+        chain.push_back(TEST_CERT_PEM.as_bytes()).unwrap();
+
+        let clone = chain.clone();
+        let mut it = clone.iter();
+
+        assert!(it.next().is_some());
+        assert!(it.next().is_some());
+        assert!(it.next().is_some());
+        assert!(it.next().is_none());
+        assert!(it.next().is_none());
+
+        let mut it = chain.iter();
+        assert!(it.next().is_some());
+        assert!(it.next().is_some());
+        assert!(it.next().is_some());
+        assert!(it.next().is_none());
+        assert!(it.next().is_none());
     }
 }

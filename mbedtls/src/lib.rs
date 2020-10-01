@@ -7,6 +7,7 @@
  * according to those terms. */
 
 #![deny(warnings)]
+#![allow(dead_code)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -56,9 +57,9 @@ pub mod ecp;
 pub mod hash;
 pub mod pk;
 pub mod rng;
-pub mod self_test;
 pub mod ssl;
 pub mod x509;
+//pub mod arc;
 
 #[cfg(feature = "pkcs12")]
 pub mod pkcs12;
@@ -162,4 +163,10 @@ pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
         *tp = timestamp;
     }
     timestamp
+}
+
+// Debug not available in SGX
+#[cfg(not(target_env = "sgx"))]
+pub fn set_global_debug_threshold(threshold: i32) {
+    unsafe { mbedtls_sys::debug_set_threshold(threshold); }
 }

@@ -9,60 +9,79 @@
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 pub use mbedtls_sys::HMAC_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
-use mbedtls_sys::{
-    hmac_drbg_random, hmac_drbg_reseed, hmac_drbg_seed, hmac_drbg_seed_buf,
-    hmac_drbg_set_prediction_resistance, hmac_drbg_update, HMAC_DRBG_PR_OFF, HMAC_DRBG_PR_ON,
-};
+use mbedtls_sys::*;
 
-use super::{EntropyCallback, RngCallback};
+use crate::rng::{EntropyCallback, RngCallback, RngCallbackMut};
 use crate::error::{IntoResult, Result};
 use crate::hash::MdInfo;
+use std::sync::Arc;
 
-define!(
-    #[c_ty(hmac_drbg_context)]
-    struct HmacDrbg<'entropy>;
-    const init: fn() -> Self = hmac_drbg_init;
-    const drop: fn(&mut Self) = hmac_drbg_free;
-);
+#[allow(dead_code)]
+pub struct HmacDrbg {
+    // Moving data causes dangling pointers: https://github.com/ARMmbed/mbedtls/issues/2147
+    // Storing data in heap and forcing rust move to only move the pointer (box) referencing it.
+    // The move will be faster. Access to data will be slower due to additional indirection.
+    inner: Box<hmac_drbg_context>,
+    entropy: Option<Arc<dyn EntropyCallback + 'static>>,
+}
+
+unsafe impl Send for HmacDrbg {}
 
 #[cfg(feature = "threading")]
-unsafe impl<'entropy> Sync for HmacDrbg<'entropy> {}
+unsafe impl Sync for HmacDrbg {}
 
-impl<'entropy> HmacDrbg<'entropy> {
-    pub fn new<F: EntropyCallback>(
+#[allow(dead_code)]
+impl Drop for HmacDrbg {
+    fn drop(&mut self) {
+        unsafe { hmac_drbg_free(&mut *self.inner) };
+    }
+}
+
+impl HmacDrbg {
+    pub fn new<T: EntropyCallback + Send + Sync + 'static>(
         md_info: MdInfo,
-        source: &'entropy mut F,
+        entropy: Arc<T>,
         additional_entropy: Option<&[u8]>,
-    ) -> Result<HmacDrbg<'entropy>> {
-        let mut ret = Self::init();
+    ) -> Result<HmacDrbg> {
+
+        let mut inner = Box::new(hmac_drbg_context::default());
         unsafe {
+            hmac_drbg_init(&mut *inner);
             hmac_drbg_seed(
-                &mut ret.inner,
+                &mut *inner,
                 md_info.into(),
-                Some(F::call),
-                source.data_ptr(),
-                additional_entropy
-                    .map(<[_]>::as_ptr)
-                    .unwrap_or(::core::ptr::null()),
+                Some(T::call),
+                entropy.data_ptr(),
+                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
                 additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
             .into_result()?
         };
-        Ok(ret)
+        Ok(HmacDrbg { inner, entropy: Some(entropy) })
     }
 
-    pub fn from_buf(md_info: MdInfo, entropy: &[u8]) -> Result<HmacDrbg<'entropy>> {
-        let mut ret = Self::init();
+    pub fn inner_ptr(&mut self) -> *mut hmac_drbg_context {
+        &mut *self.inner
+    }
+
+    pub fn inner_ptr_const(&self) -> *const hmac_drbg_context {
+        &*self.inner
+    }
+
+    
+    pub fn from_buf(md_info: MdInfo, entropy: &[u8]) -> Result<HmacDrbg> {
+        let mut inner = Box::new(hmac_drbg_context::default());
         unsafe {
+            hmac_drbg_init(&mut *inner);
             hmac_drbg_seed_buf(
-                &mut ret.inner,
+                &mut *inner,
                 md_info.into(),
                 entropy.as_ptr(),
                 entropy.len()
             )
             .into_result()?
         };
-        Ok(ret)
+        Ok(HmacDrbg { inner, entropy: None })
     }
 
     pub fn prediction_resistance(&self) -> bool {
@@ -76,7 +95,7 @@ impl<'entropy> HmacDrbg<'entropy> {
     pub fn set_prediction_resistance(&mut self, pr: bool) {
         unsafe {
             hmac_drbg_set_prediction_resistance(
-                &mut self.inner,
+                self.inner_ptr(),
                 if pr {
                     HMAC_DRBG_PR_ON
                 } else {
@@ -86,15 +105,26 @@ impl<'entropy> HmacDrbg<'entropy> {
         }
     }
 
-    getter!(entropy_len() -> size_t = .entropy_len);
-    setter!(set_entropy_len(len: size_t) = hmac_drbg_set_entropy_len);
-    getter!(reseed_interval() -> c_int = .reseed_interval);
-    setter!(set_reseed_interval(i: c_int) = hmac_drbg_set_reseed_interval);
+    pub fn entropy_len(&self) -> size_t {
+        self.inner.entropy_len
+    }
+
+    pub fn set_entropy_len(&mut self, len: size_t) {
+        unsafe { hmac_drbg_set_entropy_len(self.inner_ptr(), len); }
+    }
+
+    pub fn reseed_interval(&self) -> c_int {
+        self.inner.reseed_interval
+    }
+
+    pub fn set_reseed_interval(&mut self, i: c_int) {
+        unsafe { hmac_drbg_set_reseed_interval(self.inner_ptr(), i); }
+    }
 
     pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> Result<()> {
         unsafe {
             hmac_drbg_reseed(
-                &mut self.inner,
+                self.inner_ptr(),
                 additional_entropy
                     .map(<[_]>::as_ptr)
                     .unwrap_or(::core::ptr::null()),
@@ -106,7 +136,7 @@ impl<'entropy> HmacDrbg<'entropy> {
     }
 
     pub fn update(&mut self, entropy: &[u8]) {
-        unsafe { hmac_drbg_update(&mut self.inner, entropy.as_ptr(), entropy.len()) };
+        unsafe { hmac_drbg_update(self.inner_ptr(), entropy.as_ptr(), entropy.len()) };
     }
 
     // TODO:
@@ -117,13 +147,20 @@ impl<'entropy> HmacDrbg<'entropy> {
     //
 }
 
-impl<'entropy> RngCallback for HmacDrbg<'entropy> {
+unsafe impl RngCallbackMut for HmacDrbg {
     #[inline(always)]
     unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+        // Mutex used in hmac_drbg_random: ../../../mbedtls-sys/vendor/crypto/library/hmac_drbg.c:363
         hmac_drbg_random(user_data, data, len)
     }
 
-    fn data_ptr(&mut self) -> *mut c_void {
-        &mut self.inner as *mut _ as *mut _
+    fn data_ptr_mut(&mut self) -> *mut c_void {
+        self.inner_ptr_const() as *const _ as *mut _
+    }
+}
+
+impl RngCallback for HmacDrbg {
+    fn data_ptr(&self) -> *mut c_void {
+        self.inner_ptr_const() as *const _ as *mut _
     }
 }

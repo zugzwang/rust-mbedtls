@@ -64,30 +64,39 @@ fn write_rng_to_slice(outbuf: &mut [u8], rng: fn() -> Option<usize>) -> c_int {
     0
 }
 
-use super::{EntropyCallback, RngCallback};
+use super::{EntropyCallback, RngCallback, RngCallbackMut};
 
-pub struct Entropy;
+pub struct Rdseed;
 
-impl EntropyCallback for Entropy {
+impl EntropyCallback for Rdseed {
     unsafe extern "C" fn call(_: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         let mut outbuf = from_raw_parts_mut(data, len);
         write_rng_to_slice(&mut outbuf, rdseed)
     }
 
-    fn data_ptr(&mut self) -> *mut c_void {
+    fn data_ptr(&self) -> *mut c_void {
         ::core::ptr::null_mut()
     }
 }
 
-pub struct Nrbg;
+pub struct Rdrand;
 
-impl RngCallback for Nrbg {
+unsafe impl RngCallbackMut for Rdrand {
     unsafe extern "C" fn call(_: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+        // outbuf data/len are stack variables
         let mut outbuf = from_raw_parts_mut(data, len);
+        
+        // rdrand function is thread safe
         write_rng_to_slice(&mut outbuf, rdrand)
     }
 
-    fn data_ptr(&mut self) -> *mut c_void {
+    fn data_ptr_mut(&mut self) -> *mut c_void {
+        ::core::ptr::null_mut()
+    }
+}
+
+impl RngCallback for Rdrand {
+    fn data_ptr(&self) -> *mut c_void {
         ::core::ptr::null_mut()
     }
 }

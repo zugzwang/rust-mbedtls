@@ -17,34 +17,36 @@ use mbedtls::ssl::config::{Endpoint, Preset, Transport, ForeignOwnedCertListBuil
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::{Certificate, LinkedCertificate};
 use mbedtls::Result as TlsResult;
+use std::sync::Arc;
 
 mod support;
 use support::entropy::entropy_new;
 
 
-fn client<F>(mut conn: TcpStream, mut ca_callback: F) -> TlsResult<()>
+fn client<F>(conn: TcpStream, ca_callback: F) -> TlsResult<()>
     where
-        F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> TlsResult<()> {
-    let mut entropy = entropy_new();
-    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+        F: Fn(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> TlsResult<()> + Send + Sync + 'static,
+{
+    let entropy = entropy_new();
+    let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-    config.set_rng(Some(&mut rng));
-    config.set_ca_callback(&mut ca_callback);
-    let mut ctx = Context::new(&config)?;
-    ctx.establish(&mut conn, None).map(|_| ())
+    config.set_rng(rng);
+    config.set_ca_callback(ca_callback);
+    let mut ctx = Context::new(Arc::new(config));
+    ctx.establish(conn, None).map(|_| ())
 }
 
-fn server(mut conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
-    let mut entropy = entropy_new();
-    let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(cert)?;
-    let mut key = Pk::from_private_key(key, None)?;
+fn server(conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
+    let entropy = entropy_new();
+    let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
+    let cert = Arc::new(Certificate::from_pem(cert)?);
+    let key = Arc::new(Pk::from_private_key(key, None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
-    config.set_rng(Some(&mut rng));
-    config.push_cert(&mut *cert, &mut key)?;
-    let mut ctx = Context::new(&config)?;
+    config.set_rng(rng);
+    config.push_cert(cert, key)?;
+    let mut ctx = Context::new(Arc::new(config));
 
-    let _ = ctx.establish(&mut conn, None);
+    let _ = ctx.establish(conn, None);
     Ok(())
 }
 
@@ -54,7 +56,7 @@ mod test {
     use std::thread;
     use crate::support::net::create_tcp_pair;
     use crate::support::keys;
-    use mbedtls::x509::{LinkedCertificate, Certificate};
+    use mbedtls::x509::{LinkedCertificate};
     use mbedtls::Error;
 
     // This callback should accept any valid self-signed certificate
@@ -69,7 +71,7 @@ mod test {
 
         let ca_callback =
             |_: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                cert_builder.push_back(&*Certificate::from_pem(keys::ROOT_CA_CERT).unwrap());
+                cert_builder.try_push_back_pem(keys::ROOT_CA_CERT).unwrap();
                 Ok(())
             };
         let c = thread::spawn(move || super::client(c, ca_callback).unwrap());

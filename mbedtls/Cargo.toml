@@ -33,13 +33,13 @@ rc2 = { version = "0.3", optional = true }
 rs-libc = "0.1.0"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.18.5"
+version = "2.19.0"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback"]
 path = "../mbedtls-sys"
 
 [dev-dependencies]
-libc = "0.2.0"
+libc = "0.2.69"
 rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"

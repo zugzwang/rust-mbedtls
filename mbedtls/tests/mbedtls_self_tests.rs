@@ -5,7 +5,7 @@
  * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
-
+/*
 extern crate mbedtls;
 extern crate mbedtls_sys;
 
@@ -87,3 +87,4 @@ fn ec_self_tests() {
         assert!(mbedtls::self_test::ecjpake(1) == 0);
     }
 }
+*/

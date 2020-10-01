@@ -18,41 +18,103 @@ macro_rules! callback {
     { $n:ident$( : $sync:ident )*($($arg:ident: $ty:ty),*) -> $ret:ty } => {
         #[cfg(not(feature="threading"))]
         pub trait $n {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret;
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
 
-            fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
         #[cfg(feature="threading")]
         pub trait $n $( : $sync )* {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret;
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
 
-            fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
         #[cfg(not(feature="threading"))]
-        impl<F> $n for F where F: FnMut($($ty),*) -> $ret {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret {
+        impl<F> $n for F where F: Fn($($ty),*) -> $ret {
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
                 (&mut*(user_data as *mut F))($($arg),*)
             }
 
-            fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
                 self as *mut F as *mut _
             }
         }
 
         #[cfg(feature="threading")]
-        impl<F> $n for F where F: Sync + FnMut($($ty),*) -> $ret {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret {
+        impl<F> $n for F where F: Sync + Fn($($ty),*) -> $ret {
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
                 (&mut*(user_data as *mut F))($($arg),*)
             }
 
-            fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
+                self as *const F as *mut _
+            }
+        }
+    };
+    { $n:ident, $m:ident$( : $sync:ident )*($($arg:ident: $ty:ty),*) -> $ret:ty } => {
+        #[cfg(not(feature="threading"))]
+        pub unsafe trait $n {
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
+
+            fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
+        }
+
+        #[cfg(feature="threading")]
+        pub unsafe trait $n $( : $sync )* {
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
+
+            fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
+        }
+
+        #[cfg(not(feature="threading"))]
+        unsafe impl<F> $n for F where F: Fn($($ty),*) -> $ret {
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
+                (&mut*(user_data as *mut F))($($arg),*)
+            }
+
+            fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
                 self as *mut F as *mut _
+            }
+        }
+
+        #[cfg(feature="threading")]
+        unsafe impl<F> $n for F where F: Sync + Fn($($ty),*) -> $ret {
+            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
+                (&mut*(user_data as *mut F))($($arg),*)
+            }
+
+            fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
+                self as *const F as *mut _
+            }
+        }
+
+        #[cfg(not(feature="threading"))]
+        pub trait $m : $n {
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
+        }
+
+        #[cfg(feature="threading")]
+        pub trait $m : $n $( + $sync )* {
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
+        }
+
+        #[cfg(not(feature="threading"))]
+        impl<F> $m for F where F: $n + Fn($($ty),*) -> $ret {
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
+                self as *mut F as *mut _
+            }
+        }
+
+        #[cfg(feature="threading")]
+        impl<F> $m for F where F: $n + Sync + Fn($($ty),*) -> $ret {
+            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
+                self as *const F as *mut _
             }
         }
     };
 }
+
 
 macro_rules! define {
     { #[c_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)*; $($defs:tt)* } => {
@@ -224,46 +286,4 @@ macro_rules! define_struct {
 
     { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> } => {};
     { lifetime $l:tt } => {};
-}
-
-macro_rules! setter {
-    { $(#[$m:meta])* $rfn:ident($n:ident : $rty:ty) = $cfn:ident } => {
-        $(#[$m])*
-        pub fn $rfn(&mut self, $n: $rty) {
-            unsafe{::mbedtls_sys::$cfn(&mut self.inner,$n.into())}
-        }
-    }
-}
-
-// can't make this work without as as_XXX! macro, and there is no as_method!...
-macro_rules! setter_callback {
-    { $(#[$m:meta])* $s:ident<$l:tt>::$rfn:ident($n:ident : $($rty:tt)+) = $cfn:ident } => {
-        as_item!(
-        impl<$l> $s<$l> {
-            $(#[$m])*
-            pub fn $rfn<F: $($rty)+>(&mut self, $n: Option<&$l mut F>) {
-                unsafe{::mbedtls_sys::$cfn(
-                    &mut self.inner,
-                    $n.as_ref().map(|_|F::call as _),
-                    $n.map(|f|f.data_ptr()).unwrap_or(::core::ptr::null_mut())
-                )}
-            }
-        }
-        );
-    }
-}
-
-macro_rules! getter {
-    { $(#[$m:meta])* $rfn:ident() -> $rty:ty = .$cfield:ident } => {
-        $(#[$m])*
-        pub fn $rfn(&self) -> $rty {
-            self.inner.$cfield.into()
-        }
-    };
-    { $(#[$m:meta])* $rfn:ident() -> $rty:ty = fn $cfn:ident } => {
-        $(#[$m])*
-        pub fn $rfn(&self) -> $rty {
-            unsafe{::mbedtls_sys::$cfn(&self.inner).into()}
-        }
-    };
 }

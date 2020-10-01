@@ -10,7 +10,7 @@
 use crate::alloc_prelude::*;
 
 pub mod certificate;
-mod crl;
+pub mod crl;
 pub mod csr;
 pub mod profile;
 // TODO

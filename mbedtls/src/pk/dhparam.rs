@@ -19,6 +19,11 @@ define!(
 );
 
 impl Dhm {
+    // For use when handling Arc<Dhm>
+    pub fn inner_ptr_const(&self) -> *const dhm_context {
+        &self.inner
+    }
+    
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
     ///
     /// When calling on PEM-encoded data, `params` must be NULL-terminated

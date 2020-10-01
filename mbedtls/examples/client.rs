@@ -16,6 +16,7 @@ use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::Certificate;
 use mbedtls::Result as TlsResult;
+use std::sync::Arc;
 
 #[path = "../tests/support/mod.rs"]
 mod support;
@@ -23,21 +24,21 @@ use support::entropy::entropy_new;
 use support::keys;
 
 fn result_main(addr: &str) -> TlsResult<()> {
-    let mut entropy = entropy_new();
-    let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
+    let entropy = Arc::new(entropy_new());
+    let rng = Arc::new(CtrDrbg::new(entropy, None)?);
+    let cert = Arc::new(Certificate::from_pem(keys::PEM_CERT)?);
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-    config.set_rng(Some(&mut rng));
-    config.set_ca_list(Some(&mut *cert), None);
-    let mut ctx = Context::new(&config)?;
+    config.set_rng(rng);
+    config.set_ca_list(cert, None);
+    let mut ctx = Context::new(Arc::new(config));
 
-    let mut conn = TcpStream::connect(addr).unwrap();
-    let mut session = ctx.establish(&mut conn, None)?;
+    let conn = TcpStream::connect(addr).unwrap();
+    ctx.establish(conn, None)?;
 
     let mut line = String::new();
     stdin().read_line(&mut line).unwrap();
-    session.write_all(line.as_bytes()).unwrap();
-    io::copy(&mut session, &mut stdout()).unwrap();
+    ctx.write_all(line.as_bytes()).unwrap();
+    io::copy(&mut ctx, &mut stdout()).unwrap();
     Ok(())
 }
 
