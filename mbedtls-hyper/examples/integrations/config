@@ -1,0 +1,18 @@
+manager_url="https://em.fortanix.com"
+username="please-fill-in-username"
+password="please-fill-in-password"
+account_name="Test Account"
+app_name="server"
+isvprodid=1
+isvsvn=3
+threads=10
+
+# Update the domain here and in src/main.rs.
+domain="localhost"
+
+# Time to wait between requests in seconds
+rate_limit=0.3
+
+curl_override="y"
+curl_opts="-k"
+

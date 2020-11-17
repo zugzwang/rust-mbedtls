@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name = "https-json-server"
+version = "0.1.0"
+authors = ["fortanix.com"]
+edition = "2018"
+license = "MPL-2.0"
+
+[dependencies]
+hyper = { version = "0.10.16", default-features = false }
+mbedtls-hyper = { path = "../../", default-features = false }
+mbedtls = { path = "../../../mbedtls", features = ["rdrand"], default-features = false }
+serde_json = "1.0"
+serde = { version = "1.0.76", features = ["derive"] }
+
+[features]
+nonsgx = [ "mbedtls-hyper/nonsgx", "mbedtls/default", "mbedtls/pthread" ]
+sgx = [ "mbedtls-hyper/sgx", "mbedtls/sgx" ]

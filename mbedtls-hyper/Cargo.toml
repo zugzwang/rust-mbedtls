@@ -1,0 +1,24 @@
+[workspace]
+
+[package]
+name = "mbedtls-hyper"
+version = "0.1.0"
+authors = ["fortanix.com"]
+edition = "2018"
+license = "MPL-2.0"
+
+[dependencies]
+hyper = { version = "0.10.16", default-features = false }
+mbedtls = { path = "../mbedtls", features = ["rdrand"], default-features = false }
+#antidote = "1.0"
+
+[features]
+nonsgx = [ "mbedtls/default", "mbedtls/pthread" ]
+sgx = [ "mbedtls/sgx" ]
+
+[profile.dev]
+panic = "abort"
+
+# Force enough threads for hyper/unit tests not to block/panic when trying to do thread::spawn
+[package.metadata.fortanix-sgx]
+threads=10

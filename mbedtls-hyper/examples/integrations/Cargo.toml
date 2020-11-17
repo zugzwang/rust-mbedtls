@@ -1,0 +1,27 @@
+[workspace]
+
+[package]
+name = "https-json-server"
+version = "0.1.0"
+authors = ["fortanix.com"]
+edition = "2018"
+license = "MPL-2.0"
+
+[dependencies]
+hyper = { version = "0.10.16", default-features = false }
+mbedtls-hyper = { git = "https://github.com/fortanix/rust-mbedtls.git", branch = "acruceru/wip-mbed-hyper-v2", default-features = false}
+mbedtls = { git = "https://github.com/fortanix/rust-mbedtls.git", branch = "acruceru/wip-mbed-hyper-v2", default-features = false}
+serde_json = "1.0"
+serde = { version = "1.0.76", features = ["derive"] }
+
+em-app = { git = "https://github.com/fortanix/rust-sgx.git", branch = "acruceru/wip-mbedtls-hyper" }
+pkix = { git = "https://github.com/fortanix/pkix.git" }
+sdkms = { git = "https://github.com/fortanix/sdkms-client-rust.git", branch = "acruceru/testing-1" }
+uuid = { version = "0.6.3", features = ["v4", "serde"] }
+
+[features]
+#nonsgx = [ "mbedtls-hyper/nonsgx", "mbedtls/default", "mbedtls/pthread" ]
+default = [ "mbedtls-hyper/sgx", "mbedtls/sgx" ]
+
+[patch.crates-io]
+rustc-serialize = { git = "https://github.com/jethrogb/rustc-serialize.git", branch = "portability" }
