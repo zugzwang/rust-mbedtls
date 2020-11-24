@@ -245,6 +245,7 @@ checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
 [[package]]
 name = "mbedtls"
 version = "0.6.1"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=acruceru/wip-mbed-hyper-v2#89380959b26853ca258f1657bc504ed2a10eb70b"
 dependencies = [
  "bitflags 1.2.1",
  "byteorder",
@@ -259,6 +260,7 @@ dependencies = [
 [[package]]
 name = "mbedtls-hyper"
 version = "0.1.0"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=acruceru/wip-mbed-hyper-v2#89380959b26853ca258f1657bc504ed2a10eb70b"
 dependencies = [
  "hyper",
  "mbedtls",
@@ -267,6 +269,7 @@ dependencies = [
 [[package]]
 name = "mbedtls-sys-auto"
 version = "2.19.0"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=acruceru/wip-mbed-hyper-v2#89380959b26853ca258f1657bc504ed2a10eb70b"
 dependencies = [
  "bindgen",
  "cmake",

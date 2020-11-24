@@ -143,7 +143,7 @@ fn echo(mut req: Request, mut res: Response) {
 
 
 fn main() -> Result<(), String> {
-    let (local_addr, server) = create_server("127.0.0.1:0").unwrap();
+    let (local_addr, server) = create_server("0.0.0.0:9001").unwrap();
 
     let mut handler = server.handle_threads(echo, 3).unwrap();
     

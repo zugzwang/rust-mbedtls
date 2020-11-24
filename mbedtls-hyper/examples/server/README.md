@@ -1,5 +1,16 @@
 HTTPS server example using mbedtls.
 
+To build with docker:
+```
+docker build -t server-example .
+```
+
+To run with docker:
+```
+docker run -p 9001:9001/tcp -v /var/run/aesmd:/var/run/aesmd --device /dev/isgx -it server-example
+```
+
+
 It shows a few things:
 - SNI based HTTPS server - to allow virtual hosts using different certificates based on provided SNI.
 - quick JSON parsing/reply
