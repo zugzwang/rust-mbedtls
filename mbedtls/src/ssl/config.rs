@@ -320,12 +320,10 @@ impl Config {
             // - We can pointer cast to it to allow storing additional objects.
             //
             let cb = &mut *(closure as *mut F);
-            let context = UnsafeFrom::from(ctx).unwrap();
-            
-            let mut ctx = HandshakeContext::init(context);
+            let ctx = UnsafeFrom::from(ctx).unwrap();
             
             let name = from_raw_parts(name, name_len);
-            match cb(&mut ctx, name) {
+            match cb(ctx, name) {
                 Ok(()) => 0,
                 Err(_) => -1,
             }

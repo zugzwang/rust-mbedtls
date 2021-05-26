@@ -30,6 +30,11 @@ bit-vec = { version = "0.5", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
 cfg-if = "1.0.0"
+tokio = { version = "0.3.4", optional = true }
+
+[patch.crates-io]
+mio = { git = "https://github.com/mzohreva/mio", branch = "mz/sgx-port-0.7.6" }
+tokio = { git = "https://github.com/mzohreva/tokio", branch = "mz/sgx-port-0.3.4" }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
@@ -68,6 +73,8 @@ padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
+async = ["tokio","tokio/net","tokio/io-util", "tokio/macros"]
+async-rt = ["async", "tokio/rt"]
 
 [[example]]
 name = "client"
@@ -92,3 +99,8 @@ required-features = ["std"]
 [[test]]
 name = "hyper"
 required-features = ["std"]
+
+[[test]]
+name = "async_session"
+path = "tests/async_session.rs"
+required-features = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
