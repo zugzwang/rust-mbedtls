@@ -53,6 +53,12 @@ serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
 hyper = { version = "0.10.16", default-features = false }
+hyper13 = { package = "hyper", version = "0.13", default-features = false, features = ["stream"] }
+tokio-02 = { package = "tokio", version = "0.2", default-features = false }
+async-stream = "0.3.0"
+futures = "0.3"
+tracing = "0.1"
+#tracing-subscriber = "0.2"
 
 [build-dependencies]
 cc = "1.0"
@@ -61,7 +67,7 @@ cc = "1.0"
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
 std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
-debug = ["mbedtls-sys-auto/debug"]
+#debug = ["mbedtls-sys-auto/debug"]
 no_std_deps = ["core_io", "spin"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
@@ -73,8 +79,8 @@ padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
-async = ["tokio","tokio/net","tokio/io-util", "tokio/macros"]
-async-rt = ["async", "tokio/rt"]
+async = ["std", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
+async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
 
 [[example]]
 name = "client"
@@ -100,7 +106,12 @@ required-features = ["std"]
 name = "hyper"
 required-features = ["std"]
 
+
+[[test]]
+name = "hyper13"
+required-features = ["std"]
+
 [[test]]
 name = "async_session"
 path = "tests/async_session.rs"
-required-features = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
+required-features = ["async-rt"]

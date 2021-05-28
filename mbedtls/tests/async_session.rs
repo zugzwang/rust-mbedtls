@@ -183,7 +183,7 @@ mod test {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     
     #[tokio::test]
-    async fn client_server_test() {
+    async fn asyncsession_client_server_test() {
         use mbedtls::ssl::Version;
 
         #[derive(Copy,Clone)]
@@ -233,7 +233,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn shutdown1() {
+    async fn asyncsession_shutdown1() {
         let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
         let c = tokio::spawn(super::with_client(c, |mut session| Box::pin(async move {
@@ -253,7 +253,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn shutdown2() {
+    async fn asyncsession_shutdown2() {
         let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
         let c = tokio::spawn(super::with_client(c, |mut session| Box::pin(async move {
@@ -276,7 +276,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn shutdown3() {
+    async fn asyncsession_shutdown3() {
         let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
         let c = tokio::spawn(super::with_client(c, |mut session| Box::pin(async move {

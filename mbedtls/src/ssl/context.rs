@@ -113,6 +113,10 @@ define!(
     impl<'a> Into<ptr> {}
 );
 
+#[cfg(all(feature = "std", feature = "async"))]
+pub type AsyncContext<T> = Context<IoAdapter<T>>;
+
+
 impl<T> Context<T> {
     pub fn new(config: Arc<Config>) -> Self {
         let mut inner = ssl_context::default();
@@ -469,7 +473,13 @@ impl<T> std::future::Future for HandshakeFuture<'_, T> {
 }
 
 #[cfg(all(feature = "std", feature = "async"))]
-impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Context<IoAdapter<T>> {
+impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncContext<T> {
+    pub async fn accept_async(config: Arc<Config>, io: T, hostname: Option<&str>) -> IoResult<AsyncContext<T>> {
+        let mut context = Self::new(config);
+        context.establish_async(io, hostname).await.map_err(|e| crate::private::error_to_io_error(e))?;
+        Ok(context)
+    }
+
     pub async fn establish_async(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
         unsafe {
             let mut io = Box::new(IoAdapter::new(io));

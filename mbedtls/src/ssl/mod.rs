@@ -17,6 +17,6 @@ pub use self::ciphersuites::CipherSuite;
 #[doc(inline)]
 pub use self::config::{Config, Version, UseSessionTickets};
 #[doc(inline)]
-pub use self::context::Context;
+pub use self::context::{AsyncContext, Context};
 #[doc(inline)]
 pub use self::ticket::TicketContext;
