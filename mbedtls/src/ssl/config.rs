@@ -104,6 +104,49 @@ callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>) -> ());
 callback!(SniCallback: Fn(&mut HandshakeContext, &[u8]) -> Result<()>);
 callback!(CaCallback: Fn(&MbedtlsList<Certificate>) -> Result<MbedtlsList<Certificate>>);
 
+
+#[repr(transparent)]
+pub struct NullTerminatedStrList {
+    c: Box<[*mut i8]>,
+}
+
+unsafe impl Send for NullTerminatedStrList {}
+unsafe impl Sync for NullTerminatedStrList {}
+
+impl NullTerminatedStrList {
+    pub fn new(list: &[&str]) -> Result<Self> {
+        let mut c = Vec::with_capacity(list.len() + 1);
+
+        for s in list {
+            let cstr = ::std::ffi::CString::new(*s).map_err(|_| Error::SslBadInputData)?;
+            c.push(cstr.into_raw());
+        }
+
+        c.push(core::ptr::null_mut());
+
+        Ok(NullTerminatedStrList {
+            c: c.into_boxed_slice(),
+        })
+    }
+
+    pub fn as_ptr(&self) -> *const *const u8 {
+        self.c.as_ptr() as *const _
+    }
+}
+
+impl Drop for NullTerminatedStrList {
+    fn drop(&mut self) {
+        for i in self.c.iter() {
+            unsafe {
+                if !(*i).is_null() {
+                    ::std::ffi::CString::from_raw(*i);
+                }
+            }
+        }
+    }
+}
+
+
 define!(
     #[c_ty(ssl_config)]
     #[repr(C)]
@@ -120,6 +163,7 @@ define!(
         
         ciphersuites: Vec<Arc<Vec<c_int>>>,
         curves: Option<Arc<Vec<ecp_group_id>>>,
+        protocols: Option<Arc<NullTerminatedStrList>>,
         
         #[allow(dead_code)]
         dhm: Option<Arc<Dhm>>,
@@ -158,6 +202,7 @@ impl Config {
             rng: None,
             ciphersuites: vec![],
             curves: None,
+            protocols: None,
             dhm: None,
             verify_callback: None,
             #[cfg(feature = "std")]
@@ -188,6 +233,20 @@ impl Config {
         self.ciphersuites.push(list);
     }
 
+    /// Set the supported Application Layer Protocols.
+    ///
+    /// Each protocol name in the list must also be terminated with a null character (`\0`).
+    pub fn set_alpn_protocols(&mut self, protocols: Arc<NullTerminatedStrList>) -> Result<()> {
+        unsafe {
+            ssl_conf_alpn_protocols(&mut self.inner, protocols.as_ptr() as *mut _)
+                .into_result()
+                .map(|_| ())?;
+        }
+
+        self.protocols = Some(protocols);
+        Ok(())
+    }
+    
     pub fn set_ciphersuites_for_version(&mut self, list: Arc<Vec<c_int>>, major: c_int, minor: c_int) {
         Self::check_c_list(&list);
         unsafe { ssl_conf_ciphersuites_for_version(self.into(), list.as_ptr(), major, minor) }

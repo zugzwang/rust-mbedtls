@@ -167,7 +167,7 @@ impl<T: IoCallback + Send + Sync + 'static> Context<T> {
 
 impl<T> Context<T> {
     pub fn handshake(&mut self) -> Result<()> {
-        match unsafe { ssl_handshake(self.into()).into_result() } {
+        match unsafe { ssl_flush_output(self.into()).into_result() } {
             Err(Error::SslWantRead) => Err(Error::SslWantRead),
             Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
             Err(e) => {
@@ -176,7 +176,18 @@ impl<T> Context<T> {
                 Err(e)
             },
             Ok(_) => {
-                Ok(())
+                match unsafe { ssl_handshake(self.into()).into_result() } {
+                    Err(Error::SslWantRead) => Err(Error::SslWantRead),
+                    Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
+                    Err(e) => {
+                        unsafe { ssl_set_bio(self.into(), ::core::ptr::null_mut(), None, None, None); }
+                        self.io = None;
+                        Err(e)
+                    },
+                    Ok(_) => {
+                        Ok(())
+                    }
+                }
             }
         }
     }
@@ -280,6 +291,20 @@ impl<T> Context<T> {
             // We cannot call the peer cert function as we need a pointer to a pointer to create the MbedtlsList, we need something in the heap / cannot use any local variable for that.
             let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::SslBadInputData)?;
             Ok(Some(peer_cert))
+        }
+    }
+
+
+    #[cfg(feature = "std")]
+    pub fn get_alpn_protocol(&self) -> Result<Option<&str>> {
+        unsafe {
+            let ptr = ssl_get_alpn_protocol(self.handle());
+            if ptr.is_null() {
+                Ok(None)
+            } else {
+                let s = std::ffi::CStr::from_ptr(ptr).to_str()?;
+                Ok(Some(s))
+            }
         }
     }
 }
@@ -456,17 +481,18 @@ impl<T> std::future::Future for HandshakeFuture<'_, T> {
     type Output = Result<()>;
     fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
         self.0.io_mut().ok_or(Error::NetInvalidContext)?
-            .ecx.set(ctx);
+                       .ecx.set(ctx);
         
         let result = match self.0.handshake() {
             Err(Error::SslWantRead) |
-            Err(Error::SslWantWrite) => Poll::Pending,
+            Err(Error::SslWantWrite) => {
+                Poll::Pending
+            },
             Err(e) => Poll::Ready(Err(e)),
             Ok(()) => Poll::Ready(Ok(()))
         };
         
-        self.0.io_mut().ok_or(Error::NetInvalidContext)?
-            .ecx.clear();
+        self.0.io_mut().map(|v| v.ecx.clear());
         
         result
     }
@@ -569,6 +595,8 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for Context<IoAdapter<T>> {
 
         io.ecx.clear();
         io.write_tracker.post_write(buf, &result);
+
+        cx.waker().clone().wake();
 
         result
     }

@@ -90,6 +90,10 @@ required-features = ["std"]
 name = "server"
 required-features = ["std"]
 
+[[example]]
+name = "hyper13"
+required-features = ["std"]
+
 [[test]]
 name = "client_server"
 required-features = ["std"]
