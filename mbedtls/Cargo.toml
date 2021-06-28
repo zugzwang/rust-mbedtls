@@ -37,14 +37,13 @@ mio = { git = "https://github.com/mzohreva/mio", branch = "mz/sgx-port-0.7.6" }
 tokio = { git = "https://github.com/mzohreva/tokio", branch = "mz/sgx-port-0.3.4" }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
-rs-libc = "0.2.0"
+rs-libc = "0.1.0"
 chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.25.0"
+version = "2.26.0"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback", "threading"]
-path = "../mbedtls-sys"
 
 [dev-dependencies]
 libc = "0.2.0"

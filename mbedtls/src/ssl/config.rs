@@ -165,9 +165,6 @@ define!(
         curves: Option<Arc<Vec<ecp_group_id>>>,
         protocols: Option<Arc<NullTerminatedStrList>>,
         
-        #[allow(dead_code)]
-        dhm: Option<Arc<Dhm>>,
-        
         verify_callback: Option<Arc<dyn VerifyCallback + 'static>>,
         #[cfg(feature = "std")]
         dbg_callback: Option<Arc<dyn DbgCallback + 'static>>,
@@ -203,7 +200,6 @@ impl Config {
             ciphersuites: vec![],
             curves: None,
             protocols: None,
-            dhm: None,
             verify_callback: None,
             #[cfg(feature = "std")]
             dbg_callback: None,
@@ -295,13 +291,13 @@ impl Config {
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
     ///
     /// When calling on PEM-encoded data, `params` must be NULL-terminated
-    pub fn set_dh_params(&mut self, dhm: Arc<Dhm>) -> Result<()> {
+    pub fn set_dh_params(&mut self, dhm: &Dhm) -> Result<()> {
         unsafe {
+            // This copies the dhm parameters and does not store any pointer to it
             ssl_conf_dh_param_ctx(self.into(), dhm.inner_ffi_mut())
                 .into_result()
                 .map(|_| ())?;
         }
-        self.dhm = Some(dhm);
         Ok(())
     }
 

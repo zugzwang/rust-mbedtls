@@ -253,6 +253,39 @@ impl Certificate {
         }
         result.map(|_| ())
     }
+
+    pub fn verify_single(
+        cert: &MbedtlsBox<Certificate>,
+        ca: &MbedtlsBox<Certificate>,
+        err_info: Option<&mut String>,
+    ) -> Result<()> {
+        let mut flags = 0;
+        let result = unsafe {
+            x509_crt_verify(
+                cert.inner_ffi_mut(),
+                ca.inner_ffi_mut(),
+                ::core::ptr::null_mut(),
+                ::core::ptr::null(),
+                &mut flags,
+                None,
+                ::core::ptr::null_mut(),
+            )
+        }
+        .into_result();
+
+        if result.is_err() {
+            if let Some(err_info) = err_info {
+                let verify_info = crate::private::alloc_string_repeat(|buf, size| unsafe {
+                    let prefix = "\0";
+                    x509_crt_verify_info(buf, size, prefix.as_ptr() as *const _, flags)
+                });
+                if let Ok(error_str) = verify_info {
+                    *err_info = error_str;
+                }
+            }
+        }
+        result.map(|_| ())
+    }
 }
 
 // TODO

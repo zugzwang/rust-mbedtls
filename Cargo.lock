@@ -687,6 +687,8 @@ dependencies = [
 [[package]]
 name = "mbedtls-sys-auto"
 version = "2.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da15d923e6a393dd8bfab2111cee366a995723fbaa8a0c3ff6bfe324e39291a"
 dependencies = [
  "bindgen",
  "cc",
@@ -954,9 +956,9 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "rs-libc"
-version = "0.2.2"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b434763aff74b924c33af0ce3a3791c7c5ff8fb431773061dde30447e2fb77f0"
+checksum = "80a671d6c4696a49b78e0a271c99bc58bc1a17a64893a3684a1ba1a944b26ca9"
 dependencies = [
  "cc",
 ]

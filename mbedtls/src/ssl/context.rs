@@ -10,7 +10,7 @@ use core::result::Result as StdResult;
 
 #[cfg(feature = "std")]
 use {
-    std::io::{Read, Write, Result as IoResult, ErrorKind as IoErrorKind},
+    std::io::{Read, Write, Result as IoResult},
     std::sync::Arc,
 };
 
@@ -19,7 +19,7 @@ use core_io::{Read, Write, Result as IoResult, ErrorKind as IoErrorKind};
 
 #[cfg(all(feature = "std", feature = "async"))]
 use {
-    std::io::{Error as IoError},
+    std::io::{Error as IoError, ErrorKind as IoErrorKind},
     std::marker::Unpin,
     std::pin::Pin,
     std::task::{Context as TaskContext, Poll},
@@ -372,7 +372,7 @@ impl HandshakeContext {
 
     pub fn set_ca_list(
         &mut self,
-        chain: Arc<MbedtlsList<Certificate>>,
+        chain: Option<Arc<MbedtlsList<Certificate>>>,
         crl: Option<Arc<Crl>>,
     ) -> Result<()> {
         // mbedtls_ssl_set_hs_ca_chain does not check for NULL handshake.
@@ -384,12 +384,12 @@ impl HandshakeContext {
         unsafe {
             ssl_set_hs_ca_chain(
                 self.into(),
-                chain.inner_ffi_mut(),
+                chain.as_ref().map(|chain| chain.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
                 crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
             );
         }
 
-        self.handshake_ca_cert = Some(chain);
+        self.handshake_ca_cert = chain;
         self.handshake_crl = crl;
         Ok(())
     }
