@@ -826,7 +826,7 @@ impl Pk {
     ///
     /// On success, returns the actual number of bytes written to `sig`.
     pub fn sign<F: Random>(
-        &mut self,
+        &self,
         md: MdType,
         hash: &[u8],
         sig: &mut [u8],
@@ -848,7 +848,7 @@ impl Pk {
         let mut ret = 0usize;
         unsafe {
             pk_sign(
-                &mut self.inner,
+                &self.inner as *const _ as *mut _,
                 md.into(),
                 hash.as_ptr(),
                 hash.len(),
@@ -912,10 +912,14 @@ impl Pk {
         }
     }
 
-    pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
+    pub fn verify(&self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
+        if hash.len() == 0 || sig.len() == 0 {
+            return Err(Error::PkBadInputData)
+        }
+        
         unsafe {
             pk_verify(
-                &mut self.inner,
+                &self.inner as *const _ as *mut _,
                 md.into(),
                 hash.as_ptr(),
                 hash.len(),
