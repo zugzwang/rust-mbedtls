@@ -117,7 +117,8 @@ impl super::BuildConfig {
         }
 
         let bindings = bindgen::builder()
-            .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
+            .clang_arg("--driver-mode=cl")
+            .clang_args(cc.get_compiler().args().iter().map(|arg| dbg!(arg.to_str().unwrap()) ))
             .header_contents("bindgen-input.h", &input)
             .allowlist_function("^(?i)mbedtls_.*")
             .allowlist_type("^(?i)mbedtls_.*")
